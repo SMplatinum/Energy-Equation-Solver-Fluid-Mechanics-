@@ -1,0 +1,99 @@
+def head_pressure(p, gamma=9810):
+    return p / gamma if p is not None else 0
+
+def head_velocity(v, g=9.81):
+    return (v or 0) ** 2 / (2 * g)
+
+def solve_energy_equation(
+    z1, p1, v1,
+    z2, p2, v2,
+    pump_head,
+    major_loss,
+    minor_loss,
+    unknown, gamma=9810, g=9.81
+):
+    p1h = head_pressure(p1, gamma)
+    p2h = head_pressure(p2, gamma)
+    v1h = head_velocity(v1, g)
+    v2h = head_velocity(v2, g)
+
+    if unknown == 'z2':
+        return (z1 or 0) + p1h + v1h + (pump_head or 0) \
+            - p2h - v2h - (major_loss or 0) - (minor_loss or 0)
+    elif unknown == 'pump_head':
+        return (z2 or 0) + p2h + v2h + (major_loss or 0) + (minor_loss or 0) \
+            - (z1 or 0) - p1h - v1h
+    elif unknown == 'major_loss':
+        return (z1 or 0) + p1h + v1h + (pump_head or 0) \
+            - (z2 or 0) - p2h - v2h - (minor_loss or 0)
+    elif unknown == 'minor_loss':
+        return (z1 or 0) + p1h + v1h + (pump_head or 0) \
+            - (z2 or 0) - p2h - v2h - (major_loss or 0)
+    else:
+        raise ValueError("Unknown must be 'z2', 'pump_head', 'major_loss', or 'minor_loss'.")
+
+def get_float(prompt, optional=False):
+    while True:
+        value = input(prompt)
+        if optional and value.strip() == "":
+            return None
+        try:
+            return float(value)
+        except ValueError:
+            print("Please enter a valid number.")
+
+def main():
+    print("=== General Energy Equation Solver ===")
+    print("All units SI: Elevation (m), Pressure (Pa), Velocity (m/s), Head/Losses (m)")
+    unknown = input("Which variable is UNKNOWN? (z2 / pump_head / major_loss / minor_loss): ").strip().lower()
+
+    z1 = get_float("Enter z1 (elevation at point 1, m): ")
+    p1 = get_float("Enter p1 (pressure at point 1, Pa): ")
+    v1 = get_float("Enter v1 (velocity at point 1, m/s): ")
+    z2 = get_float("Enter z2 (elevation at point 2, m) [Leave blank if unknown]: ", optional=True) if unknown != "z2" else None
+    p2 = get_float("Enter p2 (pressure at point 2, Pa): ")
+    v2 = get_float("Enter v2 (velocity at point 2, m/s): ")
+    pump_head = get_float("Enter pump head added (m) [Leave blank if unknown]: ", optional=True) if unknown != "pump_head" else None
+
+    # Major loss handling
+    if unknown == 'major_loss':
+        major_loss = None
+    else:
+        use_major = input("Include major loss? (y/n): ").strip().lower()
+        if use_major == "y":
+            f = get_float("Enter Darcy friction factor f: ")
+            L = get_float("Enter pipe length L (m): ")
+            D = get_float("Enter pipe diameter D (m): ")
+            v_major = get_float("Enter pipe velocity for major loss calculation (m/s): ")
+            g = 9.81
+            major_loss = f * (L / D) * (v_major ** 2) / (2 * g)
+            print(f"Calculated major head loss: {major_loss} m")
+        else:
+            major_loss = 0
+
+    # Minor loss handling
+    if unknown == 'minor_loss':
+        minor_loss = None
+    else:
+        use_minor = input("Include minor loss? (y/n): ").strip().lower()
+        if use_minor == "y":
+            K = get_float("Enter total K for fittings: ")
+            v_minor = get_float("Enter pipe velocity for minor loss calculation (m/s): ")
+            g = 9.81
+            minor_loss = K * (v_minor ** 2) / (2 * g)
+            print(f"Calculated minor head loss: {minor_loss} m")
+        else:
+            minor_loss = 0
+
+    result = solve_energy_equation(
+        z1=z1, p1=p1, v1=v1,
+        z2=z2, p2=p2, v2=v2,
+        pump_head=pump_head,
+        major_loss=major_loss,
+        minor_loss=minor_loss,
+        unknown=unknown
+    )
+    print(f"\nResult: The value of '{unknown}' is {result:.4f} m")
+
+if __name__ == "__main__":
+    main()
